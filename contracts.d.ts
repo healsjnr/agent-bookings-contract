@@ -84,3 +84,12 @@ export interface BookingInstance extends ContractInstance {
     options?: TransactionOptions
   ): Promise<boolean>;
 }
+
+export interface MigrationsInstance extends ContractInstance {
+  upgrade(new_address: Address, options?: TransactionOptions): Promise<void>;
+  last_completed_migration(
+    options?: TransactionOptions
+  ): Promise<BigNumber.BigNumber>;
+  owner(options?: TransactionOptions): Promise<Address>;
+  setCompleted(completed: UInt, options?: TransactionOptions): Promise<void>;
+}

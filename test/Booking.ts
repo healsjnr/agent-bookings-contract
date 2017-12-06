@@ -2,17 +2,19 @@ import { BookingInstance } from "../contracts";
 
 import * as chai from 'chai';
 import * as dirtyChai from 'dirty-chai';
+
 import ChaiBigNumber = require('chai-bignumber');
 import chaiAsPromised = require('chai-as-promised');
 
 export const chaiSetup = {
     configure() {
         chai.config.includeStack = true;
-        chai.use(ChaiBigNumber());
+        chai.use(ChaiBigNumber(web3.BigNumber));
         chai.use(dirtyChai);
         chai.use(chaiAsPromised);
     },
 };
+chaiSetup.configure();
 
 const expect = chai.expect;
 
@@ -38,17 +40,22 @@ contract("Booking", function([_, customer, supplier]) {
   it("creates a booking", async () => {
     const bookingResult = await booking.getBookingDetails.call(bookingId);
     console.log("booking: " + JSON.stringify(bookingResult));
+    expect(bookingResult[0]).to.be.bignumber.equal(bookingId);
+    expect(bookingResult[1]).to.be.bignumber.equal(bookingValue);
+    expect(bookingResult[2]).to.equal(isRefundable);
+    expect(bookingResult[3]).to.be.bignumber.equal(0);
+    expect(bookingResult[4]).to.equal(customer);
+    expect(bookingResult[5]).to.equal(supplier);
+    expect(bookingResult[6]).to.be.bignumber.equal(checkInEpochSeconds);
+    expect(bookingResult[7]).to.be.bignumber.equal(checkOutEpochSeconds);
   });
 
   describe('pay for a booking', () => {
     it("allows the customer to pay for the booking", async() => {
       await booking.payForBooking(bookingId ,{from: customer});
-      // How to nicely pull out the values into an obejct?
       // How to nicely deal with enums?
       const bookingResult = await booking.getBookingDetails.call(bookingId);
-      console.log("booking: " + JSON.stringify(bookingResult));
-      console.log(bookingResult[3]);
-      expect(bookingResult[3]).to.equal("1");
+      expect(bookingResult[3]).to.be.bignumber.equal(1);
     });
 
     it('decreases the customers account balance')

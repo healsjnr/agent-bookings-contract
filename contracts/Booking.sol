@@ -33,10 +33,11 @@ contract Booking {
   }
 
   function payForBooking(uint bookingId) returns (bool) { 
-    BookingDetails memory bookingDetails = bookings[bookingId];
+    BookingDetails storage bookingDetails = bookings[bookingId];
     require(bookingDetails.bookingId != 0);
     require(msg.sender == bookingDetails.customer); //do this via a modifier?
-    // Do the transaction dance. 
+    // TODO Do the transaction dance. 
+    bookingDetails.bookingState = BookingState.Booked;
   }
 
   //function cancelBooking(address customer, string bookingId) { }
