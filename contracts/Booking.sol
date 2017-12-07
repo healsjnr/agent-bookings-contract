@@ -32,12 +32,14 @@ contract Booking {
     return true;
   }
 
-  function payForBooking(uint bookingId) returns (bool) { 
+  function payForBooking(uint bookingId) payable returns (bool) { 
     BookingDetails storage bookingDetails = bookings[bookingId];
     require(bookingDetails.bookingId != 0);
     require(msg.sender == bookingDetails.customer); //do this via a modifier?
+    if (msg.value != bookingDetails.bookingValue) throw;
     // TODO Do the transaction dance. 
     bookingDetails.bookingState = BookingState.Booked;
+    return true;
   }
 
   //function cancelBooking(address customer, string bookingId) { }
@@ -52,6 +54,10 @@ contract Booking {
     // Maybe add a modifier?
     BookingDetails booking = bookings[bookingId];
     return (booking.bookingId, booking.bookingValue, booking.isRefundable, booking.bookingState, booking.customer, booking.supplier, booking.checkInEpochSeconds, booking.checkOutEpochSeconds);
+  }
+
+  function getBalance() constant returns (uint) {
+    return this.balance;
   }
 
   //function getBookingState(string bookingId) constant returns (BookingState) { }

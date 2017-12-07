@@ -48,7 +48,7 @@ export interface BookingInstance extends ContractInstance {
     checkOutEpochSeconds: UInt,
     options?: TransactionOptions
   ): Promise<boolean>;
-  bookings(
+  getBalance(
     unnamed0: UInt,
     options?: TransactionOptions
   ): Promise<
@@ -63,7 +63,36 @@ export interface BookingInstance extends ContractInstance {
       BigNumber.BigNumber
     ]
   >;
-  bookingProvider(options?: TransactionOptions): Promise<Address>;
+  bookings(
+    unnamed1: UInt,
+    options?: TransactionOptions
+  ): Promise<
+    [
+      BigNumber.BigNumber,
+      BigNumber.BigNumber,
+      boolean,
+      BigNumber.BigNumber,
+      Address,
+      Address,
+      BigNumber.BigNumber,
+      BigNumber.BigNumber
+    ]
+  >;
+  bookingProvider(
+    bookingId: UInt,
+    options?: TransactionOptions
+  ): Promise<
+    [
+      Address,
+      BigNumber.BigNumber,
+      boolean,
+      BigNumber.BigNumber,
+      Address,
+      Address,
+      BigNumber.BigNumber,
+      BigNumber.BigNumber
+    ]
+  >;
   getBookingDetails(
     bookingId: UInt,
     options?: TransactionOptions

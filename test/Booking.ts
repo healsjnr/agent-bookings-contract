@@ -24,13 +24,15 @@ contract("Booking", function([_, customer, supplier]) {
 
   let booking: BookingInstance;
 
-  const bookingId = 1234;
-  const bookingValue = 256;
+  const gasPrice = new web3.BigNumber(100000000000); //TODO sort out the bignumber / chai weirdness
+  const bookingId = new web3.BigNumber(1234);
+  const bookingValue = new web3.BigNumber(256);
   const isRefundable = false;
   const today = new Date();
   const tomorrow = new Date(today.getTime() + 1000 * 60 * 60 * 24);
   const checkInEpochSeconds = Math.round(today.getTime() / 1000);
   const checkOutEpochSeconds = Math.round(tomorrow.getTime() / 1000);
+
 
   before(async() => {
     booking = await Booking.new();
@@ -51,16 +53,29 @@ contract("Booking", function([_, customer, supplier]) {
   });
 
   describe('pay for a booking', () => {
-    it("allows the customer to pay for the booking", async() => {
-      await booking.payForBooking(bookingId ,{from: customer});
-      // How to nicely deal with enums?
+    it("allows the customer to pay for the booking", async () => {
+      await booking.payForBooking(bookingId ,{from: customer, value: bookingValue});
       const bookingResult = await booking.getBookingDetails.call(bookingId);
       expect(bookingResult[3]).to.be.bignumber.equal(1);
     });
 
-    it('decreases the customers account balance')
+    it('decreases the customer account correctly', async () => {
+      const customerAmountBeforePayment = web3.eth.getBalance(customer);
+      const result: any = await booking.payForBooking(bookingId ,{from: customer, value: bookingValue});
+      const gasUsed = result.receipt.gasUsed;
+      const gas = gasPrice.times(gasUsed);
+      const customerAmountAfterPayment = web3.eth.getBalance(customer);
+      const customerDifference = customerAmountBeforePayment.minus(customerAmountAfterPayment);
+      const customerDifferenceLessGas = customerDifference.minus(gas);
+      expect(customerDifferenceLessGas).to.be.bignumber.equal(bookingValue);
+    });
 
-    it('increases the contracts account balance')
+    it('increase the contract value correctly', async () => {
+      const initialBalance = web3.eth.getBalance(booking.address);
+      await booking.payForBooking(bookingId ,{from: customer, value: bookingValue});
+      const finalBalance = web3.eth.getBalance(booking.address);
+      expect(finalBalance.minus(initialBalance)).to.be.bignumber.equal(bookingValue);
+    })
 
     it('fails when the customer does not have enough money')
 
