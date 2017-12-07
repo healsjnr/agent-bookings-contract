@@ -35,6 +35,7 @@ contract Booking {
   function payForBooking(uint bookingId) payable returns (bool) { 
     BookingDetails storage bookingDetails = bookings[bookingId];
     require(bookingDetails.bookingId != 0);
+    require(bookingDetails.bookingState == BookingState.Creating);
     require(msg.sender == bookingDetails.customer); //do this via a modifier?
     if (msg.value != bookingDetails.bookingValue) throw;
     // TODO Do the transaction dance. 

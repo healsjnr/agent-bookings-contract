@@ -20,35 +20,51 @@ const expect = chai.expect;
 
 const Booking = artifacts.require("Booking");
 
-contract("Booking", function([_, customer, supplier]) {
+contract("Booking", function([_, customer, supplier, dummy]) {
 
   let booking: BookingInstance;
+  let bookingId = new web3.BigNumber(0);
 
-  const bookingId = new web3.BigNumber(1234);
-  const bookingValue = new web3.BigNumber(256);
+  const MAX_GAS = web3.toWei(1, "ether"); 
+  const bookingValueEth = 1;
+  const bookingValue = new web3.BigNumber(web3.toWei(bookingValueEth, "ether"));
   const isRefundable = false;
   const today = new Date();
   const tomorrow = new Date(today.getTime() + 1000 * 60 * 60 * 24);
   const checkInEpochSeconds = Math.round(today.getTime() / 1000);
   const checkOutEpochSeconds = Math.round(tomorrow.getTime() / 1000);
 
-  before(async() => {
+  beforeEach(async() => {
+    bookingId = bookingId.plus(1);
     booking = await Booking.new();
     await booking.createBooking(customer, bookingId, bookingValue, isRefundable, supplier, checkInEpochSeconds, checkOutEpochSeconds);
   });
 
-  it("creates a booking", async () => {
-    const bookingResult = await booking.getBookingDetails.call(bookingId);
-    console.log("booking: " + JSON.stringify(bookingResult));
-    expect(bookingResult[0]).to.be.bignumber.equal(bookingId);
-    expect(bookingResult[1]).to.be.bignumber.equal(bookingValue);
-    expect(bookingResult[2]).to.equal(isRefundable);
-    expect(bookingResult[3]).to.be.bignumber.equal(0);
-    expect(bookingResult[4]).to.equal(customer);
-    expect(bookingResult[5]).to.equal(supplier);
-    expect(bookingResult[6]).to.be.bignumber.equal(checkInEpochSeconds);
-    expect(bookingResult[7]).to.be.bignumber.equal(checkOutEpochSeconds);
+  describe('createing a booking', () => {
+    it('succeeds when the booking does not exist', async () => {
+      const bookingResult = await booking.getBookingDetails.call(bookingId);
+      console.log("booking: " + JSON.stringify(bookingResult));
+      expect(bookingResult[0]).to.be.bignumber.equal(bookingId);
+      expect(bookingResult[1]).to.be.bignumber.equal(bookingValue);
+      expect(bookingResult[2]).to.equal(isRefundable);
+      expect(bookingResult[3]).to.be.bignumber.equal(0);
+      expect(bookingResult[4]).to.equal(customer);
+      expect(bookingResult[5]).to.equal(supplier);
+      expect(bookingResult[6]).to.be.bignumber.equal(checkInEpochSeconds);
+      expect(bookingResult[7]).to.be.bignumber.equal(checkOutEpochSeconds);
+    });
+
+    it('fails when the booking already exists', async () => {
+      try {
+        await booking.createBooking(customer, bookingId, bookingValue, isRefundable, supplier, checkInEpochSeconds, checkOutEpochSeconds);
+      } catch(error) {
+        expect(error.message).to.have.string('invalid opcode');
+        return;
+      }
+      assert.fail(null, null, 'Expected invalid opcode');
+    });
   });
+
 
   describe('pay for a booking', () => {
     it("allows the customer to pay for the booking", async () => {
@@ -76,20 +92,43 @@ contract("Booking", function([_, customer, supplier]) {
       expect(finalBalance.minus(initialBalance)).to.be.bignumber.equal(bookingValue);
     })
 
-    it('fails when the customer does not have enough money')
+    it("fails if the booking is already booked", async () => {
+      await booking.payForBooking(bookingId ,{from: customer, value: bookingValue});
+      try {
+        await booking.payForBooking(bookingId ,{from: customer, value: bookingValue});
+      } catch(error) {
+        expect(error.message).to.have.string('invalid opcode');
+        return;
+      }
+      assert.fail(null, null, 'Expected invalid opcode')
+    });
+
+    it('fails when the customer does not have enough money', async () => {
+      const totalPossiblePayment = bookingValue.plus(MAX_GAS);
+      const customerInitialBalance = web3.eth.getBalance(customer);
+      const amountToTransfer = customerInitialBalance.minus(totalPossiblePayment); 
+      web3.eth.sendTransaction({ from: customer, to: dummy, value: amountToTransfer});
+      try {
+        await booking.payForBooking(bookingId ,{from: customer, value: bookingValue});
+      } catch(error) {
+        expect(error.message).to.have.string("sender doesn't have enough funds to send tx");
+        return;
+      } finally {
+        web3.eth.sendTransaction({ from: dummy, to: customer, value: amountToTransfer});
+      }
+      assert.fail(null, null, "Expected error with sender doesn't have enough funds to send tx");
+    });
 
     it('fails when the customer is not the sender', async() => {
       try {
         await booking.payForBooking(bookingId ,{from: supplier});
-        assert.fail('Expected invalid opcode')
       } catch(error) {
         expect(error.message).to.have.string('invalid opcode');
+        return;
       }
+      assert.fail(null, null, 'Expected invalid opcode')
     });
 
-
-
   });
-
 
 });
