@@ -24,7 +24,6 @@ contract("Booking", function([_, customer, supplier]) {
 
   let booking: BookingInstance;
 
-  const gasPrice = new web3.BigNumber(100000000000); //TODO sort out the bignumber / chai weirdness
   const bookingId = new web3.BigNumber(1234);
   const bookingValue = new web3.BigNumber(256);
   const isRefundable = false;
@@ -32,7 +31,6 @@ contract("Booking", function([_, customer, supplier]) {
   const tomorrow = new Date(today.getTime() + 1000 * 60 * 60 * 24);
   const checkInEpochSeconds = Math.round(today.getTime() / 1000);
   const checkOutEpochSeconds = Math.round(tomorrow.getTime() / 1000);
-
 
   before(async() => {
     booking = await Booking.new();
@@ -62,8 +60,9 @@ contract("Booking", function([_, customer, supplier]) {
     it('decreases the customer account correctly', async () => {
       const customerAmountBeforePayment = web3.eth.getBalance(customer);
       const result: any = await booking.payForBooking(bookingId ,{from: customer, value: bookingValue});
+      const gasPrice = web3.eth.getTransaction(result.tx).gasPrice.toNumber();
       const gasUsed = result.receipt.gasUsed;
-      const gas = gasPrice.times(gasUsed);
+      const gas = gasUsed * gasPrice;
       const customerAmountAfterPayment = web3.eth.getBalance(customer);
       const customerDifference = customerAmountBeforePayment.minus(customerAmountAfterPayment);
       const customerDifferenceLessGas = customerDifference.minus(gas);
