@@ -38,16 +38,7 @@ export interface BasicTokenInstance extends ContractInstance {
 }
 
 export interface BookingInstance extends ContractInstance {
-  createBooking(
-    customer: Address,
-    bookingId: UInt,
-    bookingValue: UInt,
-    isRefundable: boolean,
-    supplier: Address,
-    checkInEpochSeconds: UInt,
-    checkOutEpochSeconds: UInt,
-    options?: TransactionOptions
-  ): Promise<boolean>;
+  drawDown(bookingId: UInt, options?: TransactionOptions): Promise<boolean>;
   getBalance(
     unnamed0: UInt,
     options?: TransactionOptions
@@ -55,26 +46,57 @@ export interface BookingInstance extends ContractInstance {
     [
       BigNumber.BigNumber,
       BigNumber.BigNumber,
-      boolean,
+      BigNumber.BigNumber,
       BigNumber.BigNumber,
       Address,
       Address,
-      BigNumber.BigNumber,
       BigNumber.BigNumber
     ]
   >;
   bookings(
     unnamed1: UInt,
+    unnamed2: Address,
+    commissionValue: UInt,
+    customer: Address,
+    supplier: Address,
+    finalisedAtEpochSeconds: UInt,
     options?: TransactionOptions
   ): Promise<
     [
       BigNumber.BigNumber,
       BigNumber.BigNumber,
+      BigNumber.BigNumber,
+      BigNumber.BigNumber,
+      Address,
+      Address,
+      BigNumber.BigNumber
+    ]
+  >;
+  balances(
+    unnamed3: UInt,
+    unnamed4: Address,
+    commissionValue: UInt,
+    customer: Address,
+    supplier: Address,
+    finalisedAtEpochSeconds: UInt,
+    options?: TransactionOptions
+  ): Promise<BigNumber.BigNumber>;
+  createBooking(
+    bookingId: UInt,
+    bookingValue: UInt,
+    commissionValue: UInt,
+    customer: Address,
+    supplier: Address,
+    finalisedAtEpochSeconds: UInt,
+    options?: TransactionOptions
+  ): Promise<
+    [
       boolean,
       BigNumber.BigNumber,
-      Address,
-      Address,
       BigNumber.BigNumber,
+      BigNumber.BigNumber,
+      Address,
+      Address,
       BigNumber.BigNumber
     ]
   >;
@@ -85,11 +107,10 @@ export interface BookingInstance extends ContractInstance {
     [
       Address,
       BigNumber.BigNumber,
-      boolean,
+      BigNumber.BigNumber,
       BigNumber.BigNumber,
       Address,
       Address,
-      BigNumber.BigNumber,
       BigNumber.BigNumber
     ]
   >;
@@ -100,14 +121,17 @@ export interface BookingInstance extends ContractInstance {
     [
       BigNumber.BigNumber,
       BigNumber.BigNumber,
-      boolean,
+      BigNumber.BigNumber,
       BigNumber.BigNumber,
       Address,
       Address,
-      BigNumber.BigNumber,
       BigNumber.BigNumber
     ]
   >;
+  balanceOf(
+    bookingId: UInt,
+    options?: TransactionOptions
+  ): Promise<BigNumber.BigNumber>;
   payForBooking(
     bookingId: UInt,
     options?: TransactionOptions

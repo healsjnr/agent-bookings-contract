@@ -20,24 +20,63 @@ const expect = chai.expect;
 
 const Booking = artifacts.require("Booking");
 
-contract("Booking", function([_, customer, supplier, dummy]) {
+contract("Booking", function([agent, customer, supplier, dummy]) {
+
+  const advanceBlock = async() => {
+    return new Promise((resolve, reject) => {
+      web3.currentProvider.sendAsync(
+        {
+          jsonrpc: "2.0",
+          method: "evm_mine",
+          id: Date.now()
+        },
+        (err, res) => {
+          return err ? reject(err) : resolve(res);
+        }
+      );
+    });
+  }
+
+  const timer = async (s: any) => {
+    return new Promise((resolve, reject) => {
+      web3.currentProvider.sendAsync(
+        {
+          jsonrpc: "2.0",
+          method: "evm_increaseTime",
+          params: [s], // 60 seaconds, may need to be hex, I forget
+          id: Math.floor(Math.random() * 10000000) // Id of the request; anything works, really
+        },
+        function(err) {
+          if (err) return reject(err);
+          resolve();
+        }
+      );
+    });
+  };
 
   let booking: BookingInstance;
   let bookingId = new web3.BigNumber(0);
 
+  const ONE_DAY_SECONDS = 60 * 60 * 24;
   const MAX_GAS = web3.toWei(1, "ether"); 
   const bookingValueEth = 1;
+  const commissionValueEth = 0.1;
   const bookingValue = new web3.BigNumber(web3.toWei(bookingValueEth, "ether"));
-  const isRefundable = false;
+  const commissionValue = new web3.BigNumber(web3.toWei(commissionValueEth, "ether"));
   const today = new Date();
-  const tomorrow = new Date(today.getTime() + 1000 * 60 * 60 * 24);
-  const checkInEpochSeconds = Math.round(today.getTime() / 1000);
+  const tomorrow = new Date(today.getTime() + 1000 * ONE_DAY_SECONDS);
   const checkOutEpochSeconds = Math.round(tomorrow.getTime() / 1000);
 
   beforeEach(async() => {
     bookingId = bookingId.plus(1);
     booking = await Booking.new();
-    await booking.createBooking(customer, bookingId, bookingValue, isRefundable, supplier, checkInEpochSeconds, checkOutEpochSeconds);
+    await booking.createBooking(
+      bookingId, 
+      bookingValue, 
+      commissionValue, 
+      customer, 
+      supplier, 
+      checkOutEpochSeconds);
   });
 
   describe('createing a booking', () => {
@@ -46,17 +85,22 @@ contract("Booking", function([_, customer, supplier, dummy]) {
       console.log("booking: " + JSON.stringify(bookingResult));
       expect(bookingResult[0]).to.be.bignumber.equal(bookingId);
       expect(bookingResult[1]).to.be.bignumber.equal(bookingValue);
-      expect(bookingResult[2]).to.equal(isRefundable);
+      expect(bookingResult[2]).to.be.bignumber.equal(commissionValue);
       expect(bookingResult[3]).to.be.bignumber.equal(0);
       expect(bookingResult[4]).to.equal(customer);
       expect(bookingResult[5]).to.equal(supplier);
-      expect(bookingResult[6]).to.be.bignumber.equal(checkInEpochSeconds);
-      expect(bookingResult[7]).to.be.bignumber.equal(checkOutEpochSeconds);
+      expect(bookingResult[6]).to.be.bignumber.equal(checkOutEpochSeconds);
     });
 
     it('fails when the booking already exists', async () => {
       try {
-        await booking.createBooking(customer, bookingId, bookingValue, isRefundable, supplier, checkInEpochSeconds, checkOutEpochSeconds);
+        await booking.createBooking(
+          bookingId, 
+          bookingValue, 
+          commissionValue, 
+          customer, 
+          supplier, 
+          checkOutEpochSeconds);
       } catch(error) {
         expect(error.message).to.have.string('invalid opcode');
         return;
@@ -65,6 +109,88 @@ contract("Booking", function([_, customer, supplier, dummy]) {
     });
   });
 
+  describe('balances of a booking', () => {
+    describe('when the booking is created', () => {
+      it('should be zero for the agent', async () => {
+        const balance = await booking.balanceOf.call(bookingId);
+        console.log(balance);
+        expect(balance).to.be.bignumber.equal(0);
+      });
+      it('should be zero for the customer', async () => {
+        const balance = await booking.balanceOf.call(bookingId, {from: customer});
+        console.log(balance);
+        expect(balance).to.be.bignumber.equal(0);
+      });
+      it('should be zero for the supplier', async () => {
+        const balance = await booking.balanceOf.call(bookingId, {from: supplier});
+        console.log(balance);
+        expect(balance).to.be.bignumber.equal(0);
+      });
+    });
+
+    describe('when the booking has been paid for', () => {
+      beforeEach(async() => {
+        await booking.payForBooking(bookingId ,{from: customer, value: bookingValue});
+      });
+      it('should be booking value for the customer', async () => {
+        const balance = await booking.balanceOf.call(bookingId, {from: customer});
+        console.log(balance.toString());
+        expect(balance).to.be.bignumber.equal(bookingValue);
+      });
+      it('should be zero for the agent', async () => {
+        const balance = await booking.balanceOf.call(bookingId);
+        console.log(balance);
+        expect(balance).to.be.bignumber.equal(0);
+      });
+      it('should be zero for the supplier', async () => {
+        const balance = await booking.balanceOf.call(bookingId, {from: supplier});
+        console.log(balance);
+        expect(balance).to.be.bignumber.equal(0);
+      });
+    });
+
+    describe('when the booking has been finalized', () =>{
+      beforeEach(async() => {
+        await booking.payForBooking(bookingId ,{from: customer, value: bookingValue});
+        timer(2 * ONE_DAY_SECONDS);
+        await advanceBlock();
+      });
+      it('should be zero for the customer', async () => {
+        const balance = await booking.balanceOf.call(bookingId, {from: customer});
+        expect(balance).to.be.bignumber.equal(0);
+      });
+      it('should be commission value for the agent', async () => {
+        const balance = await booking.balanceOf.call(bookingId);
+        expect(balance).to.be.bignumber.equal(commissionValue);
+      });
+      it('should be bookingValue minus commission for the supplier', async () => {
+        const balance = await booking.balanceOf.call(bookingId, {from: supplier});
+        expect(balance).to.be.bignumber.equal(bookingValue.minus(commissionValue));
+      });
+
+    });
+    
+    describe('when the booking has been drawnDown', () =>{
+      beforeEach(async() => {
+        await booking.payForBooking(bookingId ,{from: customer, value: bookingValue});
+        timer(2 * ONE_DAY_SECONDS);
+        await advanceBlock();
+        await booking.drawDown(bookingId);
+      });
+      it('should be zero for the customer', async () => {
+        const balance = await booking.balanceOf.call(bookingId, {from: customer});
+        expect(balance).to.be.bignumber.equal(0);
+      });
+      it('should be zero for the agent', async () => {
+        const balance = await booking.balanceOf.call(bookingId);
+        expect(balance).to.be.bignumber.equal(0);
+      });
+      it('should be zero for the supplier', async () => {
+        const balance = await booking.balanceOf.call(bookingId, {from: supplier});
+        expect(balance).to.be.bignumber.equal(0);
+      });
+    });
+  });
 
   describe('pay for a booking', () => {
     it("allows the customer to pay for the booking", async () => {
@@ -131,4 +257,27 @@ contract("Booking", function([_, customer, supplier, dummy]) {
 
   });
 
+  describe('draw down a booking', () => {
+    beforeEach(async () => {
+      await booking.payForBooking(bookingId ,{from: customer, value: bookingValue});
+      timer(2 * ONE_DAY_SECONDS);
+      await advanceBlock();
+    });
+
+    it('should increase the supplier account by net amount', async () => {
+      const supplierBefore = web3.eth.getBalance(supplier);
+      await booking.drawDown(bookingId);
+      const supplierAfter = web3.eth.getBalance(supplier);
+      const supplierDifference = web3.fromWei(supplierAfter.minus(supplierBefore), "ether");
+      expect(supplierDifference).to.be.bignumber.equal(bookingValueEth - commissionValueEth);
+    });
+
+    it('should increase the agent account by commission amount', async () => {
+      const agentBefore = web3.eth.getBalance(agent);
+      await booking.drawDown(bookingId, {from: supplier});
+      const agentAfter = web3.eth.getBalance(agent);
+      const agentDifference = web3.fromWei(agentAfter.minus(agentBefore), "ether");
+      expect(agentDifference).to.be.bignumber.equal(commissionValueEth);
+    });
+  });
 });
