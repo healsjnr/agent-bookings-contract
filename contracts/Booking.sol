@@ -2,8 +2,6 @@ pragma solidity ^0.4.15;
 
 contract Booking {
 
-  // TODO could look at using ipfs to store more detailed metadata about a booking.
-	
   function Booking() public {
     bookingProvider = msg.sender;
 	}
@@ -19,15 +17,12 @@ contract Booking {
     address supplier;
     uint finalisedAtEpochSeconds;
     mapping(address => uint) balances;
-    // This is kind of like a token. All three parties can call balanceOf(_tokenId) and recieve their balance
   }
   
   address public bookingProvider;
   mapping(uint => BookingDetails) public bookings;
   mapping(uint => mapping (address => uint)) public balances;
 
-  // Many probolems with this being the public method. Customer can effectively set all the values
-  // Probably needs to be two part. Create by us, pay by customer.
   function createBooking(uint bookingId, uint bookingValue, uint commissionValue, address customer, address supplier, uint finalisedAtEpochSeconds) 
     public 
     returns (bool) 
@@ -47,24 +42,6 @@ contract Booking {
     balances[bookingId][customer] = 0; 
     balances[bookingId][supplier] = 0; 
     return true;
-  }
-
-  function getBookingDetails(uint bookingId) 
-    public
-    constant 
-    returns (uint, uint, uint, BookingState, address, address, uint) 
-  {
-    // Need to ensure sender is either supplier, customer or booking provider
-    //  -- Why? This is all public.
-    // Maybe add a modifier?
-    BookingDetails memory booking = bookings[bookingId];
-    return (booking.bookingId, 
-      booking.bookingValue, 
-      booking.commissionValue, 
-      booking.bookingState, 
-      booking.customer, 
-      booking.supplier, 
-      booking.finalisedAtEpochSeconds);
   }
 
   function payForBooking(uint bookingId) 
@@ -99,8 +76,8 @@ contract Booking {
     bookingProvider.transfer(bookingDetails.commissionValue);
     balances[bookingId][bookingProvider] = 0; 
     balances[bookingId][bookingDetails.supplier] = 0; 
+    balances[bookingId][bookingDetails.customer] = 0; 
   }
-
 
   function getBalance() 
     public 
@@ -129,8 +106,20 @@ contract Booking {
     return balances[bookingId][msg.sender];
   }
 
-  //function getBookingState(string bookingId) constant returns (BookingState) { }
-  //
-  //function quoteCancellation(string bookingId) constant returns (uint) { }
+  function getBookingDetails(uint bookingId) 
+    public
+    constant 
+    returns (uint, uint, uint, BookingState, address, address, uint) 
+  {
+    BookingDetails memory booking = bookings[bookingId];
+    return (booking.bookingId, 
+      booking.bookingValue, 
+      booking.commissionValue, 
+      booking.bookingState, 
+      booking.customer, 
+      booking.supplier, 
+      booking.finalisedAtEpochSeconds);
+  }
+
 
 }
